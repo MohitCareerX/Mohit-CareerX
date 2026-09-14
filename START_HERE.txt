@@ -1,0 +1,18 @@
+MOHIT CAREERX — Website Editor + YouTube + Photo Upload
+
+1) Run start_portal.bat (do NOT double-click HTML files).
+2) Open http://localhost:8000/
+3) Admin: http://localhost:8000/admin.html
+4) Login with your Supabase admin account.
+5) Run the NEW schema.sql once in Supabase SQL Editor before using Website Editor.
+
+Admin tabs:
+- Jobs: Add/Edit/Delete/Publish jobs. Includes Telecalling / BPO category.
+- Website Content: Edit homepage text.
+- YouTube Videos: Paste a YouTube link; it automatically embeds on the public site.
+- Photo Upload: Upload JPG/PNG/WebP website images (recommended <= 6 MB).
+
+Important:
+- Website photos are public media. Never upload resumes, IDs, passwords, or private documents here.
+- Use real employer application links for live jobs.
+- The browser uses only the Supabase publishable key. Never put a Supabase secret/service-role key in these files.
