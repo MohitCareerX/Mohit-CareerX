@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://mohitcareerx.github.io/Mohit-CareerX/sitemap.xml
