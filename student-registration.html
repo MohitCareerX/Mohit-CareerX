@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student Registration — MOHIT CAREERX</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+</head>
+<body>
+<div class="top"></div>
+<header class="header">
+  <a class="logo" href="index.html"><span>MOHIT</span> CAREERX 🚀</a>
+  <nav class="nav mobile-nav">
+    <a href="index.html">Home</a>
+    <a href="our-courses.html">Our Courses</a>
+    <a href="dashboard.html">Dashboard</a>
+    <button class="btn ghost" id="logout">Logout</button>
+  </nav>
+</header>
+
+<main class="container">
+<section class="section">
+  <div class="heading">
+    <span class="eyebrow">STUDENT REGISTRATION</span>
+    <h1>Complete Your <span>Registration</span></h1>
+    <p>Your account must be logged in before this form can be submitted.</p>
+  </div>
+
+  <div id="authNotice" class="card">Checking login…</div>
+
+  <form id="studentForm" class="card" style="display:none">
+    <div class="grid">
+      <div><label>Student Name *</label><input class="input" id="full_name" required></div>
+      <div><label>Father Name</label><input class="input" id="father_name"></div>
+      <div><label>Mother Name</label><input class="input" id="mother_name"></div>
+      <div><label>Gender</label><select class="select" id="gender"><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+      <div><label>Date of Birth</label><input class="input" id="date_of_birth" type="date"></div>
+      <div><label>Mobile No. *</label><input class="input" id="mobile" inputmode="numeric" required></div>
+      <div><label>Email ID *</label><input class="input" id="email" type="email" readonly></div>
+      <div><label>Aadhaar Number *</label><input class="input" id="aadhaar_number" inputmode="numeric" maxlength="12" required></div>
+      <div><label>Course *</label><select class="select" id="course_id" required><option value="">Loading courses…</option></select></div>
+      <div><label>Qualification</label><input class="input" id="qualification"></div>
+      <div><label>State</label><input class="input" id="state"></div>
+      <div><label>District</label><input class="input" id="district"></div>
+      <div><label>PIN Code</label><input class="input" id="pin_code" inputmode="numeric" maxlength="6"></div>
+    </div>
+
+    <div style="margin-top:18px">
+      <label>Address</label>
+      <textarea class="input" id="address" rows="4"></textarea>
+    </div>
+
+    <div class="grid" style="margin-top:18px">
+      <div><label>Passport-size Photo *</label><input class="input" id="photo" type="file" accept="image/jpeg,image/png,image/webp" required></div>
+      <div><label>Document Photo *</label><input class="input" id="document" type="file" accept="image/jpeg,image/png,application/pdf" required></div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <strong>Privacy</strong>
+      <p class="muted">Aadhaar and uploaded documents are sensitive information. They are intended for authorized student/admin access and must not be published publicly.</p>
+    </div>
+
+    <button class="btn primary" id="submitBtn" type="submit">Submit Registration</button>
+    <div id="msg" class="notice" style="margin-top:14px"></div>
+  </form>
+</section>
+</main>
+
+<script src="student-registration.js"></script>
+</body>
+</html>

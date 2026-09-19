@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Our Courses — MOHIT CAREERX</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+</head>
+<body>
+<div class="top"></div>
+<header class="header">
+  <a class="logo" href="index.html"><span>MOHIT</span> CAREERX 🚀</a>
+  <nav class="nav mobile-nav">
+    <a href="index.html">Home</a>
+    <a href="index.html#jobs">Jobs</a>
+    <a href="our-courses.html">Our Courses</a>
+    <a href="login.html">Login</a>
+    <a class="btn primary" href="signup.html">Create Account</a>
+  </nav>
+</header>
+
+<main class="container">
+  <section class="hero">
+    <div>
+      <span class="eyebrow">MOHIT CAREERX • LEARNING</span>
+      <h1>Our <span>Courses</span></h1>
+      <p>Build practical skills with structured courses and career-focused learning.</p>
+      <div class="actions">
+        <a class="btn ghost" href="login.html?next=student-registration.html">Login to Register</a>
+        <a class="btn primary" href="signup.html">Create Account</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="heading">
+      <span class="eyebrow">COURSE CATALOG</span>
+      <h2>Choose Your Course</h2>
+      <p>Registration is available only after Signup/Login.</p>
+    </div>
+    <div id="coursesGrid" class="grid">
+      <div class="card">Loading courses…</div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div><b>MOHIT CAREERX</b><br>Learn Skills • Get Jobs • Grow Your Career</div>
+</footer>
+
+<script>
+const { createClient } = supabase;
+const sb = createClient(window.MOHIT_CONFIG.SUPABASE_URL, window.MOHIT_CONFIG.SUPABASE_PUBLISHABLE_KEY);
+
+const fallbackCourses = [
+  {code:"BCC",name:"BCC",duration_months:3,fee_inr:750},
+  {code:"CCC",name:"CCC",duration_months:3,fee_inr:1000},
+  {code:"DCA",name:"DCA",duration_months:6,fee_inr:1500},
+  {code:"ADCA",name:"ADCA",duration_months:12,fee_inr:2000},
+  {code:"TYPING",name:"Typing Course",duration_months:null,fee_inr:0},
+  {code:"INTERVIEW",name:"Interview Preparation",duration_months:null,fee_inr:0}
+];
+
+function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));}
+
+async function loadCourses(){
+  const grid=document.getElementById("coursesGrid");
+  const {data,error}=await sb.from("courses").select("id,code,name,description,duration_months,fee_inr").eq("active",true).order("name");
+  const courses = error || !data?.length ? fallbackCourses : data;
+  grid.innerHTML=courses.map(c=>`
+    <article class="card">
+      <span class="badge">${esc(c.code)}</span>
+      <h3>${esc(c.name)}</h3>
+      <p class="muted">${c.duration_months ? esc(c.duration_months)+" months" : "Flexible duration"}</p>
+      <h3>₹${Number(c.fee_inr||0).toLocaleString("en-IN")}</h3>
+      <p>${esc(c.description||"Career-focused learning with MOHIT CAREERX.")}</p>
+      <a class="btn primary" href="login.html?next=${encodeURIComponent("student-registration.html?course="+encodeURIComponent(c.id||c.code))}">Login & Register</a>
+    </article>`).join("");
+}
+loadCourses();
+</script>
+</body>
+</html>
