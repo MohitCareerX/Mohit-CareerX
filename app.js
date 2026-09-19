@@ -1,11 +1,182 @@
-const {createClient}=supabase;const sb=createClient(window.MOHIT_CONFIG.SUPABASE_URL,window.MOHIT_CONFIG.SUPABASE_PUBLISHABLE_KEY);const grid=document.getElementById('jobsGrid');let allJobs=[];
-const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
-async function loadJobs(){const {data,error}=await sb.from('jobs').select('*').eq('is_active',true).order('created_at',{ascending:false});if(error){grid.innerHTML=`<div class="card"><b>Database error:</b> ${esc(error.message)}</div>`;return}allJobs=data||[];render()}
-function render(){const q=(document.getElementById('q').value||'').toLowerCase(),cat=document.getElementById('cat').value;const list=allJobs.filter(j=>(!cat||j.category===cat)&&`${j.title} ${j.company} ${j.location||''} ${j.skills||''}`.toLowerCase().includes(q));grid.innerHTML=list.length?list.map(j=>`<article class="card"><div class="row"><span class="badge">${esc(j.job_type||'Job')}</span><span class="muted">${esc(j.location||'India')}</span></div><h3>${esc(j.title)}</h3><p class="muted">${esc(j.company)}</p><div class="tags">${(j.skills||'').split(',').filter(Boolean).map(s=>`<span class="tag">${esc(s.trim())}</span>`).join('')}</div><p>${esc(j.description||'')}</p><div class="card-actions"><button class="btn small primary" onclick="applyJob('${j.id}')">Apply</button><button class="btn small ghost" onclick="saveJob('${j.id}')">♡ Save</button></div></article>`).join(''):'<div class="card">No jobs found.</div>'}
-async function applyJob(id){const {data:{user}}=await sb.auth.getUser();if(!user){location.href='login.html';return}const {data:p}=await sb.from('profiles').select('full_name').eq('id',user.id).maybeSingle();const job=allJobs.find(x=>x.id===id);const {error}=await sb.from('applications').insert({user_id:user.id,job_id:id,full_name:p?.full_name||'',email:user.email});if(error&&!error.message.toLowerCase().includes('duplicate'))alert(error.message);else if(job?.apply_url&&job.apply_url!=='https://example.com')window.open(job.apply_url,'_blank');else alert('Application saved. The employer link is not configured for this listing.')}
-async function saveJob(id){const {data:{user}}=await sb.auth.getUser();if(!user){location.href='login.html';return}const {error}=await sb.from('saved_jobs').upsert({user_id:user.id,job_id:id});if(error)alert(error.message);else alert('Job saved to your dashboard.')}
-async function loadSite(){const {data,error}=await sb.from('site_content').select('*');if(error)return;const c=Object.fromEntries((data||[]).map(x=>[x.key,x.value]));const set=(id,key)=>{if(c[key]&&document.getElementById(id))document.getElementById(id).textContent=c[key]};set('heroEyebrow','hero_eyebrow');set('heroTitle','hero_title');set('heroText','hero_text');set('careerTitle','career_title');set('careerText','career_text');set('aboutTitle','about_title');set('aboutText','about_text');set('contactText','contact_text');set('youtubeTitle','youtube_section_title');set('photosTitle','photos_section_title');set('footerName','site_name')}
-function youtubeId(url){try{const u=new URL(url);if(u.hostname==='youtu.be')return u.pathname.slice(1).split('/')[0];if(u.searchParams.get('v'))return u.searchParams.get('v');const m=u.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/);return m?m[1]:''}catch{return ''}}
-async function loadVideos(){const box=document.getElementById('videosGrid');const {data,error}=await sb.from('site_videos').select('*').eq('is_active',true).order('sort_order',{ascending:true}).order('created_at',{ascending:false});if(error){box.innerHTML='<div class="card">Videos could not be loaded.</div>';return}const list=data||[];box.innerHTML=list.length?list.map(v=>{const id=youtubeId(v.youtube_url);return `<article class="card video-card"><div class="video-frame">${id?`<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}" title="${esc(v.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`:'Invalid YouTube link'}</div><h3>${esc(v.title)}</h3><p class="muted">${esc(v.description||'')}</p></article>`}).join(''):'<div class="card">No videos added yet. Add one from Admin → YouTube Videos.</div>'}
-async function loadPhotos(){const box=document.getElementById('photosGrid');const {data,error}=await sb.from('site_photos').select('*').eq('is_active',true).order('sort_order',{ascending:true}).order('created_at',{ascending:false});if(error){box.innerHTML='<div class="card">Photos could not be loaded.</div>';return}const list=data||[];box.innerHTML=list.length?list.map(p=>`<figure class="media-card"><img src="${esc(p.image_url)}" alt="${esc(p.alt_text||p.title||'MOHIT CAREERX photo')}" loading="lazy"><figcaption>${esc(p.title||'')}</figcaption></figure>`).join(''):'<div class="card">No photos added yet. Add one from Admin → Photo Upload.</div>'}
-document.getElementById('q').addEventListener('input',render);document.getElementById('cat').addEventListener('change',render);loadJobs();loadSite();loadVideos();loadPhotos();
+// MOHIT CAREERX - Authentication
+// Login / Signup / Email Confirmation Redirect
+
+const sb = window.supabase.createClient(
+  window.MOHIT_CONFIG.SUPABASE_URL,
+  window.MOHIT_CONFIG.SUPABASE_PUBLISHABLE_KEY
+);
+
+// Get ?next=... safely
+function nextUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get("next");
+
+  // Only allow relative internal pages
+  if (
+    next &&
+    !next.startsWith("http://") &&
+    !next.startsWith("https://") &&
+    !next.startsWith("//")
+  ) {
+    return next;
+  }
+
+  return "dashboard.html";
+}
+
+
+// =========================
+// SIGN UP
+// =========================
+async function signup() {
+  const name = document.getElementById("name")?.value.trim();
+  const email = document.getElementById("email")?.value.trim();
+  const password = document.getElementById("password")?.value;
+
+  if (!email || !password) {
+    alert("Please enter email and password.");
+    return;
+  }
+
+  try {
+    const { data, error } = await sb.auth.signUp({
+      email: email,
+      password: password,
+      options: {
+        data: {
+          full_name: name || ""
+        },
+        emailRedirectTo: window.location.origin + "/Mohit-CareerX/"
+      }
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    if (data.session) {
+      window.location.href = nextUrl();
+      return;
+    }
+
+    alert(
+      "Account created successfully.\n\n" +
+      "Please check your email and confirm your email address."
+    );
+
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong. Please try again.");
+  }
+}
+
+
+// =========================
+// LOGIN
+// =========================
+async function login() {
+  const email = document.getElementById("email")?.value.trim();
+  const password = document.getElementById("password")?.value;
+
+  if (!email || !password) {
+    alert("Please enter email and password.");
+    return;
+  }
+
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    if (data.session) {
+      window.location.href = nextUrl();
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert("Login failed. Please try again.");
+  }
+}
+
+
+// =========================
+// LOGOUT
+// =========================
+async function logout() {
+  try {
+    const { error } = await sb.auth.signOut();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    window.location.href = "index.html";
+
+  } catch (err) {
+    console.error(err);
+    alert("Logout failed.");
+  }
+}
+
+
+// =========================
+// CHECK CURRENT USER
+// =========================
+async function getCurrentUser() {
+  const {
+    data: { user },
+    error
+  } = await sb.auth.getUser();
+
+  if (error) {
+    console.error(error);
+    return null;
+  }
+
+  return user;
+}
+
+
+// =========================
+// AUTO REDIRECT AFTER LOGIN
+// =========================
+async function requireLogin() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    const currentPage =
+      window.location.pathname.split("/").pop() +
+      window.location.search;
+
+    window.location.href =
+      "login.html?next=" + encodeURIComponent(currentPage);
+
+    return null;
+  }
+
+  return user;
+}
+
+
+// =========================
+// AUTH STATE LISTENER
+// =========================
+sb.auth.onAuthStateChange((event, session) => {
+  console.log("Auth event:", event);
+
+  if (event === "SIGNED_OUT") {
+    console.log("User signed out.");
+  }
+
+  if (event === "SIGNED_IN" && session?.user) {
+    console.log("User signed in:", session.user.email);
+  }
+});
