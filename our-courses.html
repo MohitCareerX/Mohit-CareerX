@@ -190,15 +190,16 @@ async function getCurrentUser(){
       ↓
   login.html?next=student-registration.html?course=COURSE_ID
 */
-async function registerCourse(courseId){
-
-  if(!courseId){
-
-    alert("Course information is missing.");
-
+function registerCourse(courseId) {
+  if (!courseId) {
+    alert("Course not found.");
     return;
-
   }
+
+  window.location.href =
+    "student-registration.html?course=" +
+    encodeURIComponent(courseId);
+}
 
 
   const user = await getCurrentUser();
