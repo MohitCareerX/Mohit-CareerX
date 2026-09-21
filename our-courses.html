@@ -230,63 +230,43 @@ function registerCourse(courseId) {
   Load courses from Supabase
 */
 async function loadCourses(){
+  const grid = document.getElementById("coursesGrid");
 
-  const grid =
-    document.getElementById("coursesGrid");
-
-
-  const {
-    data,
-    error
-  } = await sb
+  const { data, error } = await sb
     .from("courses")
-    .select(
-      "id,code,name,description,duration_months,fee_inr"
-    )
-    .eq("active",true)
+    .select("id,code,name,description,duration_months,fee_inr")
+    .eq("active", true)
     .order("name");
 
-
-  let courses;
-
-
-  if(error){
-
+  if (error) {
     console.error("Course loading error:", error);
 
-    courses = fallbackCourses;
-
-  }else if(!data || !data.length){
-
-    courses = fallbackCourses;
-
-  }else{
-
-    courses = data;
-
+    grid.innerHTML = `
+      <div class="card">
+        <h3>Courses load नहीं हो पाए</h3>
+        <p>${esc(error.message)}</p>
+        <p>कृपया page को Ctrl + F5 करके दोबारा खोलें.</p>
+      </div>
+    `;
+    return;
   }
 
+  if (!data || data.length === 0) {
+    grid.innerHTML = `
+      <div class="card">
+        <h3>अभी कोई course available नहीं है.</h3>
+      </div>
+    `;
+    return;
+  }
 
-  grid.innerHTML = courses.map(c => `
-
+  grid.innerHTML = data.map(c => `
     <article class="card">
-
-      <span class="badge">
-        ${esc(c.code)}
-      </span>
-
-      <h3>
-        ${esc(c.name)}
-      </h3>
+      <span class="badge">${esc(c.code)}</span>
+      <h3>${esc(c.name)}</h3>
 
       <p class="muted">
-
-        ${
-          c.duration_months
-          ? esc(c.duration_months) + " months"
-          : "Flexible duration"
-        }
-
+        ${c.duration_months ? esc(c.duration_months) + " months" : "Flexible duration"}
       </p>
 
       <h3>
@@ -294,24 +274,18 @@ async function loadCourses(){
       </h3>
 
       <p>
-        ${esc(
-          c.description ||
-          "Career-focused learning with MOHIT CAREERX."
-        )}
+        ${esc(c.description || "Career-focused learning with MOHIT CAREERX.")}
       </p>
 
       <button
         class="btn primary"
         type="button"
-        onclick="registerCourse('${esc(c.id || c.code)}')"
+        onclick="registerCourse('${esc(c.id)}')"
       >
         📝 Register Now
       </button>
-
     </article>
-
   `).join("");
-
 }
 
 
