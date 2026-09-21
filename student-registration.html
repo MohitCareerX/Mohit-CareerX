@@ -41,6 +41,57 @@
       <div><label>Email ID *</label><input class="input" id="email" type="email" readonly></div>
       <div><label>Aadhaar Number *</label><input class="input" id="aadhaar_number" inputmode="numeric" maxlength="12" required></div>
       <div><label>Course *</label><select class="select" id="course_id" required><option value="">Loading courses…</option></select></div>
+     <!-- Coupon Section -->
+<div class="card" style="margin-top:20px;">
+  <h3>🎟️ Have a Coupon Code?</h3>
+  <div style="margin-top:15px;">
+  <label>Coupon Code</label>
+  <input
+    class="input"
+    id="coupon_code"
+    type="text"
+    placeholder="Enter coupon code"
+    autocomplete="off"
+  >
+</div>
+  <div style="margin-top:10px;">
+  <button
+    type="button"
+    class="btn primary"
+    id="applyCouponBtn"
+  >
+    Apply Coupon
+  </button>
+</div>
+  <div
+  id="couponMsg"
+  style="margin-top:10px;"
+></div>
+  id="feeSummary"
+  style="
+    display:none;
+    margin-top:15px;
+    padding:16px;
+    border-radius:12px;
+    background:#071a3d;
+  "
+>
+  <p>
+    Course Fee:
+    <strong id="originalFee">₹0</strong>
+  </p>
+
+  <p>
+    Discount:
+    <strong id="discountAmount">₹0</strong>
+  </p>
+
+  <p style="font-size:20px;">
+    Payable Amount:
+    <strong id="payableAmount">₹0</strong>
+  </p>
+</div>
+      </div>
       <div><label>Qualification</label><input class="input" id="qualification"></div>
       <div><label>State</label><input class="input" id="state"></div>
       <div><label>District</label><input class="input" id="district"></div>
