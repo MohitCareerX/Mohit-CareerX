@@ -65,7 +65,10 @@ async function loadCourses() {
 
   if (error) {
     console.error("Course loading error:", error);
-    showMessage("Unable to load courses: " + error.message, true);
+    showMessage(
+      "Unable to load courses: " + error.message,
+      true
+    );
     return;
   }
 
@@ -100,7 +103,9 @@ function updateFeeSummary() {
   const courseId = $("course_id")?.value;
 
   selectedCourse =
-    courses.find((course) => course.id === courseId) || null;
+    courses.find(
+      (course) => course.id === courseId
+    ) || null;
 
   if (!selectedCourse) {
     if ($("feeSummary")) {
@@ -109,30 +114,40 @@ function updateFeeSummary() {
     return;
   }
 
-  const fee = Number(selectedCourse.fee_inr || 0);
+  const fee =
+    Number(selectedCourse.fee_inr || 0);
 
   const discount =
-    Math.round((fee * discountPercent) / 100 * 100) / 100;
+    Math.round(
+      (fee * discountPercent) / 100 * 100
+    ) / 100;
 
-  const payable = Math.max(
-    0,
-    Math.round((fee - discount) * 100) / 100
-  );
+  const payable =
+    Math.max(
+      0,
+      Math.round(
+        (fee - discount) * 100
+      ) / 100
+    );
 
   if ($("originalFee")) {
-    $("originalFee").textContent = "₹" + fee;
+    $("originalFee").textContent =
+      "₹" + fee;
   }
 
   if ($("discountAmount")) {
-    $("discountAmount").textContent = "₹" + discount;
+    $("discountAmount").textContent =
+      "₹" + discount;
   }
 
   if ($("payableAmount")) {
-    $("payableAmount").textContent = "₹" + payable;
+    $("payableAmount").textContent =
+      "₹" + payable;
   }
 
   if ($("feeSummary")) {
-    $("feeSummary").style.display = "block";
+    $("feeSummary").style.display =
+      "block";
   }
 }
 
@@ -141,18 +156,25 @@ function updateFeeSummary() {
 ----------------------------- */
 
 async function applyCoupon() {
+
   const input = $("coupon_code");
   const button = $("applyCouponBtn");
 
   if (!input) return;
 
-  const code = input.value.trim().toUpperCase();
+  const code =
+    input.value.trim().toUpperCase();
 
   if (!code) {
+
     if ($("couponMsg")) {
-      $("couponMsg").textContent = "Please enter coupon code.";
-      $("couponMsg").style.color = "#ff6b6b";
+      $("couponMsg").textContent =
+        "Please enter coupon code.";
+
+      $("couponMsg").style.color =
+        "#ff6b6b";
     }
+
     return;
   }
 
@@ -162,7 +184,11 @@ async function applyCoupon() {
   }
 
   try {
-    const { data, error } = await sb.rpc(
+
+    const {
+      data,
+      error
+    } = await sb.rpc(
       "get_coupon_discount",
       {
         p_code: code
@@ -174,30 +200,48 @@ async function applyCoupon() {
     let percent = 0;
 
     if (typeof data === "number") {
+
       percent = Number(data);
-    } else if (Array.isArray(data) && data.length) {
-      percent = Number(
-        data[0]?.discount_percent ??
-        data[0] ??
-        0
-      );
-    } else if (data && typeof data === "object") {
-      percent = Number(
-        data.discount_percent ?? 0
-      );
+
+    } else if (
+      Array.isArray(data) &&
+      data.length
+    ) {
+
+      percent =
+        Number(
+          data[0]?.discount_percent ??
+          data[0] ??
+          0
+        );
+
+    } else if (
+      data &&
+      typeof data === "object"
+    ) {
+
+      percent =
+        Number(
+          data.discount_percent ?? 0
+        );
     }
 
     if (!percent) {
+
       appliedCoupon = null;
       discountPercent = 0;
 
       if ($("couponMsg")) {
+
         $("couponMsg").textContent =
           "Invalid or expired coupon code.";
-        $("couponMsg").style.color = "#ff6b6b";
+
+        $("couponMsg").style.color =
+          "#ff6b6b";
       }
 
       updateFeeSummary();
+
       return;
     }
 
@@ -205,25 +249,40 @@ async function applyCoupon() {
     discountPercent = percent;
 
     if ($("couponMsg")) {
+
       $("couponMsg").textContent =
         `Coupon applied successfully — ${percent}% discount.`;
-      $("couponMsg").style.color = "#7CFFB2";
+
+      $("couponMsg").style.color =
+        "#7CFFB2";
     }
 
     updateFeeSummary();
 
   } catch (error) {
-    console.error("Coupon error:", error);
+
+    console.error(
+      "Coupon error:",
+      error
+    );
 
     if ($("couponMsg")) {
+
       $("couponMsg").textContent =
-        "Coupon check failed: " + error.message;
-      $("couponMsg").style.color = "#ff6b6b";
+        "Coupon check failed: " +
+        error.message;
+
+      $("couponMsg").style.color =
+        "#ff6b6b";
     }
+
   } finally {
+
     if (button) {
+
       button.disabled = false;
-      button.textContent = "Apply Coupon";
+      button.textContent =
+        "Apply Coupon";
     }
   }
 }
@@ -233,69 +292,107 @@ async function applyCoupon() {
 ----------------------------- */
 
 async function submitRegistration(event) {
+
   event.preventDefault();
 
   const form = $("studentForm");
 
   if (!form) return;
 
-  showMessage("Submitting registration...");
+  showMessage(
+    "Submitting registration..."
+  );
 
-  const courseId = $("course_id")?.value;
+  const courseId =
+    $("course_id")?.value;
 
   if (!courseId) {
-    showMessage("Please select a course.", true);
+
+    showMessage(
+      "Please select a course.",
+      true
+    );
+
     return;
   }
 
-  /*
-    IMPORTANT:
-    Step 3 sends registration data to the
-    Supabase Edge Function.
-
-    Login is NOT required.
-  */
-
   const payload = {
-    full_name: $("full_name")?.value.trim() || "",
-    father_name: $("father_name")?.value.trim() || "",
-    mother_name: $("mother_name")?.value.trim() || "",
-    gender: $("gender")?.value || "",
-    date_of_birth: $("date_of_birth")?.value || "",
-    mobile: $("mobile")?.value.trim() || "",
-    email: $("email")?.value.trim() || "",
+
+    full_name:
+      $("full_name")?.value.trim() || "",
+
+    father_name:
+      $("father_name")?.value.trim() || "",
+
+    mother_name:
+      $("mother_name")?.value.trim() || "",
+
+    gender:
+      $("gender")?.value || "",
+
+    date_of_birth:
+      $("date_of_birth")?.value || "",
+
+    mobile:
+      $("mobile")?.value.trim() || "",
+
+    email:
+      $("email")?.value.trim() || "",
+
     aadhaar_number:
       $("aadhaar_number")?.value.trim() || "",
 
     qualification:
       $("qualification")?.value.trim() || "",
 
-    state: $("state")?.value.trim() || "",
-    district: $("district")?.value.trim() || "",
-    pin_code: $("pin_code")?.value.trim() || "",
+    state:
+      $("state")?.value.trim() || "",
+
+    district:
+      $("district")?.value.trim() || "",
+
+    pin_code:
+      $("pin_code")?.value.trim() || "",
 
     address:
       $("address")?.value.trim() || "",
 
-    course_id: courseId,
+    course_id:
+      courseId,
 
-    coupon_code: appliedCoupon || ""
+    coupon_code:
+      appliedCoupon || ""
   };
 
-  /* Basic validation */
+  /* Validation */
 
   if (!payload.full_name) {
-    showMessage("Please enter full name.", true);
+
+    showMessage(
+      "Please enter full name.",
+      true
+    );
+
     return;
   }
 
   if (!payload.mobile) {
-    showMessage("Please enter mobile number.", true);
+
+    showMessage(
+      "Please enter mobile number.",
+      true
+    );
+
     return;
   }
 
   if (!payload.email) {
-    showMessage("Please enter email address.", true);
+
+    showMessage(
+      "Please enter email address.",
+      true
+    );
+
     return;
   }
 
@@ -305,67 +402,107 @@ async function submitRegistration(event) {
       window.MOHIT_CONFIG.SUPABASE_URL +
       "/functions/v1/public-student-registration";
 
-    const response = await fetch(functionUrl, {
-      method: "POST",
+    const response =
+      await fetch(functionUrl, {
 
-      headers: {
-        "Content-Type": "application/json",
-        apikey:
-          window.MOHIT_CONFIG.SUPABASE_PUBLISHABLE_KEY
-      },
+        method: "POST",
 
-      body: JSON.stringify(payload)
-    });
+        headers: {
+          "Content-Type": "application/json",
 
-    const result = await response.json();
+          apikey:
+            window.MOHIT_CONFIG
+              .SUPABASE_PUBLISHABLE_KEY
+        },
 
-    if (!response.ok || !result.success) {
-      throw new Error(
-        result.error ||
-        "Registration failed."
-      );
-    }
+        body:
+          JSON.stringify(payload)
+      });
+
+    const result =
+      await response.json();
 
     console.log(
       "Registration result:",
       result
     );
 
-    /*
-      Successful registration
-    */
+    if (
+      !response.ok ||
+      !result.success
+    ) {
+
+      throw new Error(
+        result.error ||
+        "Registration failed."
+      );
+    }
+
+    /* --------------------------------
+       IMPORTANT FIX:
+       Edge Function returns TOP LEVEL
+       fields.
+    -------------------------------- */
+
+    const studentCode =
+      result.student_code || "";
+
+    const enrollmentNo =
+      result.enrollment_no || "";
+
+    const courseName =
+      result.course_name || "";
+
+    const originalFee =
+      Number(
+        result.original_fee ?? 0
+      );
+
+    const discountAmount =
+      Number(
+        result.discount_amount ?? 0
+      );
+
+    const payable =
+      Number(
+        result.payable_amount ?? 0
+      );
+
+    const paymentStatus =
+      result.payment_status ||
+      "pending";
+
+    const inviteSent =
+      result.invite_sent === true;
+
+    /* --------------------------------
+       Success Message
+    -------------------------------- */
 
     showMessage(
       "Registration successful!"
     );
 
-    const studentCode =
-      result.student?.student_code || "";
-
-    const enrollmentNo =
-      result.enrollment?.enrollment_no || "";
-
-    const courseName =
-      result.enrollment?.course_name || "";
-
-    const payable =
-      result.enrollment?.payable_amount ?? 0;
-
-    /*
-      Show success information
-    */
-
     const successBox =
       document.createElement("div");
 
-    successBox.style.marginTop = "20px";
-    successBox.style.padding = "20px";
-    successBox.style.borderRadius = "14px";
-    successBox.style.background = "#071a3d";
+    successBox.style.marginTop =
+      "20px";
+
+    successBox.style.padding =
+      "20px";
+
+    successBox.style.borderRadius =
+      "14px";
+
+    successBox.style.background =
+      "#071a3d";
+
     successBox.style.border =
       "1px solid rgba(255,255,255,.15)";
 
     successBox.innerHTML = `
+
       <h3 style="color:#7CFFB2;">
         ✅ Registration Successful
       </h3>
@@ -386,13 +523,49 @@ async function submitRegistration(event) {
       </p>
 
       <p>
+        <strong>Course Fee:</strong>
+        ₹${originalFee}
+      </p>
+
+      <p>
+        <strong>Discount:</strong>
+        ₹${discountAmount}
+      </p>
+
+      <p style="font-size:20px;">
         <strong>Payable Amount:</strong>
-        ₹${Number(payable)}
+        ₹${payable}
       </p>
 
       <p style="margin-top:15px;color:#ffd21c;">
-        Payment status: Pending
+        Payment Status:
+        ${escapeHtml(paymentStatus)}
       </p>
+
+      ${
+        inviteSent
+          ? `
+            <p style="
+              margin-top:15px;
+              color:#7CFFB2;
+            ">
+              📧 Account invitation sent to
+              <strong>
+                ${escapeHtml(payload.email)}
+              </strong>.
+              Please check your email to create your password.
+            </p>
+          `
+          : `
+            <p style="
+              margin-top:15px;
+              color:#ffd21c;
+            ">
+              🔐 An account already exists for this email.
+              Please use your existing login.
+            </p>
+          `
+      }
 
       <button
         type="button"
@@ -408,18 +581,18 @@ async function submitRegistration(event) {
       successBox
     );
 
-    /*
-      Disable form after successful registration
-    */
+    /* Disable form */
 
     const buttons =
       form.querySelectorAll(
         "button, input[type=submit]"
       );
 
-    buttons.forEach((button) => {
-      button.disabled = true;
-    });
+    buttons.forEach(
+      (button) => {
+        button.disabled = true;
+      }
+    );
 
   } catch (error) {
 
@@ -437,24 +610,21 @@ async function submitRegistration(event) {
 }
 
 /* -----------------------------
-   Auth Notice
+   Registration Page
 ----------------------------- */
 
 async function showRegistrationPage() {
-
-  /*
-    Login is NOT required anymore.
-    We intentionally do not call getUser().
-  */
 
   showNotice(
     "📝 You can register for a course without Login."
   );
 
-  const form = $("studentForm");
+  const form =
+    $("studentForm");
 
   if (form) {
-    form.style.display = "block";
+    form.style.display =
+      "block";
   }
 
   await loadCourses();
@@ -472,6 +642,7 @@ document.addEventListener(
       $("course_id");
 
     if (courseSelect) {
+
       courseSelect.addEventListener(
         "change",
         updateFeeSummary
@@ -482,6 +653,7 @@ document.addEventListener(
       $("applyCouponBtn");
 
     if (couponButton) {
+
       couponButton.addEventListener(
         "click",
         applyCoupon
@@ -492,6 +664,7 @@ document.addEventListener(
       $("studentForm");
 
     if (form) {
+
       form.addEventListener(
         "submit",
         submitRegistration
