@@ -1,7 +1,6 @@
-// MOHIT CAREERX
-// Student Registration + Course + Coupon + Private Documents + Payment
+const { createClient } = supabase;
 
-const sb = window.supabase.createClient(
+const sb = createClient(
   window.MOHIT_CONFIG.SUPABASE_URL,
   window.MOHIT_CONFIG.SUPABASE_PUBLISHABLE_KEY
 );
@@ -11,903 +10,441 @@ const $ = (id) => document.getElementById(id);
 const form = $("studentForm");
 const notice = $("authNotice");
 const msg = $("msg");
-
 const courseSelect = $("course_id");
+const emailInput = $("email");
 
-const couponInput = $("coupon_code");
-const applyCouponBtn = $("applyCouponBtn");
-const couponMsg = $("couponMsg");
-
-const feeSummary = $("feeSummary");
-const originalFee = $("originalFee");
-const discountAmount = $("discountAmount");
-const payableAmount = $("payableAmount");
-
-let appliedCoupon = null;
-let appliedDiscountPercent = 0;
-let currentCourseFee = 0;
-
-
-/* =========================
-   SHOW MESSAGE
-========================= */
-
-function showMessage(text, type = "success") {
+function showMsg(text, error = false) {
   if (!msg) return;
-
   msg.textContent = text;
-
-  msg.style.padding = "14px";
-  msg.style.borderRadius = "10px";
-  msg.style.marginTop = "15px";
-
-  if (type === "error") {
-    msg.style.background = "#7f1d1d";
-    msg.style.color = "#fff";
-  } else {
-    msg.style.background = "#0f3b63";
-    msg.style.color = "#fff";
-  }
+  msg.className = error ? "notice error" : "notice";
 }
 
+async function loadRegistration() {
+  try {
+    notice.textContent = "Checking login...";
 
-/* =========================
-   ESCAPE HTML
-========================= */
+    // First check the existing browser session.
+    const {
+      data: { session },
+      error: sessionError
+    } = await sb.auth.getSession();
 
-function esc(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (m) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  }[m]));
-}
+    if (sessionError) {
+      throw sessionError;
+    }
 
+    const user = session?.user;
 
-/* =========================
-   GET CURRENT USER
-========================= */
-
-async function getCurrentUser() {
-  const {
-    data: { user },
-    error
-  } = await sb.auth.getUser();
-
-  if (error) {
-    console.error(error);
-    return null;
-  }
-
-  return user;
-}
-
-
-/* =========================
-   LOAD USER
-========================= */
-
-async function loadUser() {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    if (notice) {
+    if (!user) {
       notice.innerHTML =
-        'Please <a href="login.html">Login</a> before registration.';
+        'Login/Signup is required before registration. ' +
+        '<a href="login.html?next=student-registration.html">Login</a> ' +
+        'or <a href="signup.html">Create Account</a>.';
+
+      return;
     }
 
-    if (form) {
-      form.style.display = "none";
-    }
+    // Login successful
+    notice.textContent = "Logged in as " + (user.email || "");
 
-    return null;
-  }
-
-  const emailInput = $("email");
-
-  if (emailInput) {
+    form.style.display = "block";
     emailInput.value = user.email || "";
-  }
 
-  return user;
-}
+    // Load active courses
+    const {
+      data: courses,
+      error: coursesError
+    } = await sb
+      .from("courses")
+      .select("id,code,name,duration_months,fee_inr")
+      .eq("active", true)
+      .order("name");
 
-
-/* =========================
-   GET COURSE FROM URL
-========================= */
-
-function getCourseFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("course");
-}
-
-
-/* =========================
-   LOAD COURSES
-========================= */
-
-async function loadCourses() {
-  if (!courseSelect) return;
-
-  const { data, error } = await sb
-    .from("courses")
-    .select(
-      "id,code,name,description,duration_months,fee_inr"
-    )
-    .eq("active", true)
-    .order("name");
-
-  if (error) {
-    console.error("Course load error:", error);
+    if (coursesError) {
+      throw coursesError;
+    }
 
     courseSelect.innerHTML =
-      '<option value="">Unable to load courses</option>';
+      '<option value="">Select a course</option>' +
+      (courses || [])
+        .map(
+          (course) => `
+            <option value="${course.id}">
+              ${course.code} — ${course.name} — ₹${Number(
+                course.fee_inr || 0
+              ).toLocaleString("en-IN")}
+            </option>
+          `
+        )
+        .join("");
 
-    return;
-  }
+    // Select course passed from Our Courses page
+    const params = new URLSearchParams(window.location.search);
+    const requestedCourse = params.get("course");
 
-  if (!data || !data.length) {
-    courseSelect.innerHTML =
-      '<option value="">No courses available</option>';
+    if (requestedCourse) {
+      const found = (courses || []).find(
+        (course) =>
+          course.id === requestedCourse ||
+          course.code === requestedCourse
+      );
 
-    return;
-  }
-
-  courseSelect.innerHTML =
-    '<option value="">Select Course</option>' +
-    data.map(course => `
-      <option
-        value="${esc(course.id)}"
-        data-fee="${Number(course.fee_inr || 0)}"
-      >
-        ${esc(course.code)} - ${esc(course.name)}
-        - ₹${Number(course.fee_inr || 0).toLocaleString("en-IN")}
-      </option>
-    `).join("");
-
-  const urlCourse = getCourseFromUrl();
-
-  if (urlCourse) {
-    const option = [...courseSelect.options].find(
-      o => o.value === urlCourse
-    );
-
-    if (option) {
-      courseSelect.value = urlCourse;
-      updateCourseFee();
-    }
-  }
-}
-
-
-/* =========================
-   COURSE FEE
-========================= */
-
-function updateCourseFee() {
-  if (!courseSelect) return;
-
-  const option =
-    courseSelect.options[courseSelect.selectedIndex];
-
-  if (!option || !option.value) {
-    currentCourseFee = 0;
-
-    if (feeSummary) {
-      feeSummary.style.display = "none";
-    }
-
-    return;
-  }
-
-  currentCourseFee =
-    Number(option.dataset.fee || 0);
-
-  calculateFee();
-}
-
-
-/* =========================
-   CALCULATE FEE
-========================= */
-
-function calculateFee() {
-  const discount =
-    currentCourseFee *
-    (Number(appliedDiscountPercent || 0) / 100);
-
-  const payable =
-    Math.max(0, currentCourseFee - discount);
-
-  if (originalFee) {
-    originalFee.textContent =
-      "₹" +
-      currentCourseFee.toLocaleString("en-IN");
-  }
-
-  if (discountAmount) {
-    discountAmount.textContent =
-      "₹" +
-      discount.toLocaleString("en-IN");
-  }
-
-  if (payableAmount) {
-    payableAmount.textContent =
-      "₹" +
-      payable.toLocaleString("en-IN");
-  }
-
-  if (feeSummary) {
-    feeSummary.style.display =
-      currentCourseFee > 0 ? "block" : "none";
-  }
-}
-
-
-/* =========================
-   COURSE CHANGE
-========================= */
-
-if (courseSelect) {
-  courseSelect.addEventListener(
-    "change",
-    () => {
-      appliedCoupon = null;
-      appliedDiscountPercent = 0;
-
-      if (couponMsg) {
-        couponMsg.textContent = "";
-      }
-
-      updateCourseFee();
-    }
-  );
-}
-
-
-/* =========================
-   APPLY COUPON
-========================= */
-
-if (applyCouponBtn) {
-  applyCouponBtn.addEventListener(
-    "click",
-    async () => {
-
-      const code =
-        couponInput?.value.trim().toUpperCase();
-
-      if (!code) {
-        if (couponMsg) {
-          couponMsg.textContent =
-            "Please enter a coupon code.";
-          couponMsg.style.color = "red";
-        }
-
-        return;
-      }
-
-      if (!courseSelect?.value) {
-        if (couponMsg) {
-          couponMsg.textContent =
-            "Please select a course first.";
-          couponMsg.style.color = "red";
-        }
-
-        return;
-      }
-
-      try {
-
-        const { data, error } =
-          await sb.rpc(
-            "get_coupon_discount",
-            {
-              p_code: code
-            }
-          );
-
-        if (error) {
-          console.error(error);
-
-          if (couponMsg) {
-            couponMsg.textContent =
-              "Coupon verification failed.";
-            couponMsg.style.color = "red";
-          }
-
-          return;
-        }
-
-        const discountPercent =
-          Number(data || 0);
-
-        if (discountPercent <= 0) {
-
-          appliedCoupon = null;
-          appliedDiscountPercent = 0;
-
-          if (couponMsg) {
-            couponMsg.textContent =
-              "❌ Invalid or expired coupon.";
-            couponMsg.style.color = "red";
-          }
-
-          calculateFee();
-
-          return;
-        }
-
-        appliedCoupon = code;
-        appliedDiscountPercent =
-          discountPercent;
-
-        if (couponMsg) {
-          couponMsg.textContent =
-            `✅ Coupon applied: ${discountPercent}% discount`;
-
-          couponMsg.style.color = "lightgreen";
-        }
-
-        calculateFee();
-
-      } catch (err) {
-
-        console.error(err);
-
-        if (couponMsg) {
-          couponMsg.textContent =
-            "Coupon error. Please try again.";
-          couponMsg.style.color = "red";
-        }
+      if (found) {
+        courseSelect.value = found.id;
       }
     }
-  );
+
+    notice.className = "card";
+  } catch (error) {
+    console.error("Registration page error:", error);
+
+    notice.innerHTML =
+      "Login check failed: " +
+      (error?.message || "Unknown error") +
+      "<br><br>Please refresh the page.";
+
+    notice.className = "card";
+  }
 }
 
 
-/* =========================
-   GET FILE EXTENSION
-========================= */
+// -----------------------------
+// FORM SUBMIT
+// -----------------------------
 
-function getExtension(file) {
-  if (!file) return "";
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
 
-  const name = file.name || "";
+  showMsg("Submitting registration...");
 
-  const parts = name.split(".");
+  const submitBtn = $("submitBtn");
+  submitBtn.disabled = true;
 
-  return parts.length > 1
-    ? parts.pop().toLowerCase()
-    : "";
-}
+  let photoPath = null;
+  let documentPath = null;
+  let studentId = null;
+
+  try {
+    const {
+      data: { session },
+      error: sessionError
+    } = await sb.auth.getSession();
+
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    const user = session?.user;
+
+    if (!user) {
+      throw new Error("Please login first.");
+    }
+
+    const aadhaar = $("aadhaar_number")
+      .value
+      .replace(/\D/g, "");
+
+    if (aadhaar.length !== 12) {
+      throw new Error("Aadhaar Number must contain 12 digits.");
+    }
+
+    const mobile = $("mobile").value.trim();
+
+    if (mobile.length < 10) {
+      throw new Error("Please enter a valid mobile number.");
+    }
+
+    const pin = $("pin_code").value.trim();
+
+    if (pin && !/^\d{6}$/.test(pin)) {
+      throw new Error("PIN Code must contain 6 digits.");
+    }
+
+    const courseId = courseSelect.value;
+
+    if (!courseId) {
+      throw new Error("Please select a course.");
+    }
 
 
-/* =========================
-   UPLOAD PRIVATE FILE
-========================= */
+    // -----------------------------
+    // PHOTO UPLOAD
+    // -----------------------------
 
-async function uploadPrivateFile(
-  userId,
-  file,
-  prefix
-) {
+    const photoFile = $("photo").files[0];
 
-  if (!file) {
-    throw new Error(
-      `${prefix === "photo" ? "Photo" : "Document"} is required.`
-    );
-  }
+    if (!photoFile) {
+      throw new Error("Please select passport-size photo.");
+    }
 
-  const maxSize =
-    5 * 1024 * 1024;
+    if (
+      ![
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+      ].includes(photoFile.type)
+    ) {
+      throw new Error("Photo must be JPG, PNG or WEBP.");
+    }
 
-  if (file.size > maxSize) {
-    throw new Error(
-      "File size must be maximum 5 MB."
-    );
-  }
+    if (photoFile.size > 5 * 1024 * 1024) {
+      throw new Error("Photo must be 5 MB or smaller.");
+    }
 
-  const ext = getExtension(file);
+    const photoExt =
+      (photoFile.name.split(".").pop() || "jpg")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
 
-  const allowedImage =
-    ["jpg", "jpeg", "png", "webp"];
+    photoPath =
+      `${user.id}/photo-${crypto.randomUUID()}.${photoExt}`;
 
-  const allowedDocument =
-    ["jpg", "jpeg", "png", "webp", "pdf"];
-
-  if (
-    prefix === "photo" &&
-    !allowedImage.includes(ext)
-  ) {
-    throw new Error(
-      "Photo must be JPG, PNG or WEBP."
-    );
-  }
-
-  if (
-    prefix === "document" &&
-    !allowedDocument.includes(ext)
-  ) {
-    throw new Error(
-      "Document must be JPG, PNG, WEBP or PDF."
-    );
-  }
-
-  const path =
-    `${userId}/${prefix}-${crypto.randomUUID()}.${ext}`;
-
-  const { error } =
-    await sb.storage
+    const {
+      error: photoError
+    } = await sb.storage
       .from("student-private")
-      .upload(path, file, {
+      .upload(photoPath, photoFile, {
         upsert: false,
-        contentType: file.type || undefined
+        contentType: photoFile.type
       });
 
-  if (error) {
-    console.error("Storage upload error:", error);
-    throw new Error(
-      "File upload failed: " + error.message
-    );
-  }
-
-  return path;
-}
-
-
-/* =========================
-   SUBMIT REGISTRATION
-========================= */
-
-if (form) {
-
-  form.addEventListener(
-    "submit",
-    async (event) => {
-
-      event.preventDefault();
-
-      if (msg) {
-        msg.textContent = "";
-      }
-
-      try {
-
-        const user =
-          await getCurrentUser();
-
-        if (!user) {
-          showMessage(
-            "Please login before registration.",
-            "error"
-          );
-          return;
-        }
-
-
-        /* =====================
-           BASIC FIELDS
-        ===================== */
-
-        const full_name =
-          $("full_name")?.value.trim();
-
-        const father_name =
-          $("father_name")?.value.trim();
-
-        const mother_name =
-          $("mother_name")?.value.trim();
-
-        const gender =
-          $("gender")?.value || null;
-
-        const date_of_birth =
-          $("date_of_birth")?.value || null;
-
-        const mobile =
-          $("mobile")?.value.trim();
-
-        const email =
-          user.email || "";
-
-        const aadhaar_number =
-          $("aadhaar_number")?.value.trim();
-
-        const qualification =
-          $("qualification")?.value.trim();
-
-        const state =
-          $("state")?.value.trim();
-
-        const district =
-          $("district")?.value.trim();
-
-        const pin_code =
-          $("pin_code")?.value.trim();
-
-        const address =
-          $("address")?.value.trim();
-
-        const selectedCourse =
-          courseSelect?.value;
-
-
-        /* =====================
-           VALIDATION
-        ===================== */
-
-        if (!full_name) {
-          showMessage(
-            "Student Name is required.",
-            "error"
-          );
-          return;
-        }
-
-        if (!mobile) {
-          showMessage(
-            "Mobile number is required.",
-            "error"
-          );
-          return;
-        }
-
-        if (!aadhaar_number) {
-          showMessage(
-            "Aadhaar number is required.",
-            "error"
-          );
-          return;
-        }
-
-        if (!/^\d{12}$/.test(aadhaar_number)) {
-          showMessage(
-            "Aadhaar number must contain exactly 12 digits.",
-            "error"
-          );
-          return;
-        }
-
-        if (!selectedCourse) {
-          showMessage(
-            "Please select a course.",
-            "error"
-          );
-          return;
-        }
-
-
-        /* =====================
-           FILE INPUTS
-        ===================== */
-
-        const photoInput =
-          $("photo") ||
-          $("photo_file") ||
-          document.querySelector(
-            'input[type="file"][accept*="image"]'
-          );
-
-        const documentInput =
-          $("document") ||
-          $("document_file") ||
-          document.querySelectorAll(
-            'input[type="file"]'
-          )[1];
-
-        const photoFile =
-          photoInput?.files?.[0];
-
-        const documentFile =
-          documentInput?.files?.[0];
-
-
-        if (!photoFile) {
-          showMessage(
-            "Passport-size Photo is required.",
-            "error"
-          );
-          return;
-        }
-
-        if (!documentFile) {
-          showMessage(
-            "Document Photo is required.",
-            "error"
-          );
-          return;
-        }
-
-
-        /* =====================
-           BUTTON
-        ===================== */
-
-        const submitBtn =
-          form.querySelector(
-            'button[type="submit"]'
-          );
-
-        if (submitBtn) {
-          submitBtn.disabled = true;
-          submitBtn.textContent =
-            "Submitting...";
-        }
-
-
-        /* =====================
-           UPLOAD PHOTO
-        ===================== */
-
-        showMessage(
-          "Uploading documents..."
-        );
-
-        const photoPath =
-          await uploadPrivateFile(
-            user.id,
-            photoFile,
-            "photo"
-          );
-
-
-        /* =====================
-           UPLOAD DOCUMENT
-        ===================== */
-
-        const documentPath =
-          await uploadPrivateFile(
-            user.id,
-            documentFile,
-            "document"
-          );
-
-
-        /* =====================
-           CREATE STUDENT
-        ===================== */
-
-        const studentPayload = {
-          user_id: user.id,
-          full_name,
-          father_name: father_name || null,
-          mother_name: mother_name || null,
-          gender,
-          date_of_birth,
-          mobile,
-          email,
-          aadhaar_number,
-          qualification:
-            qualification || null,
-          address:
-            address || null,
-          state:
-            state || null,
-          district:
-            district || null,
-          pin_code:
-            pin_code || null,
-          photo_path: photoPath,
-          document_path: documentPath,
-          status: "pending"
-        };
-
-
-        const {
-          data: student,
-          error: studentError
-        } = await sb
-          .from("students")
-          .insert(studentPayload)
-          .select(
-            "id,student_code,full_name"
-          )
-          .single();
-
-
-        if (studentError) {
-          console.error(
-            "Student insert error:",
-            studentError
-          );
-
-          throw new Error(
-            "Student registration failed: " +
-            studentError.message
-          );
-        }
-
-
-        /* =====================
-           DISCOUNT AMOUNT
-        ===================== */
-
-        const discountAmountValue =
-          currentCourseFee *
-          (Number(appliedDiscountPercent || 0) / 100);
-
-        const payable =
-          Math.max(
-            0,
-            currentCourseFee -
-            discountAmountValue
-          );
-
-
-        /* =====================
-           CREATE ENROLLMENT
-        ===================== */
-
-        const enrollmentPayload = {
-          student_id: student.id,
-          course_id: selectedCourse,
-          fee_amount: currentCourseFee,
-          discount_amount:
-            discountAmountValue,
-          payable_amount:
-            payable,
-          status:
-            "pending_payment"
-        };
-
-
-        const {
-          data: enrollment,
-          error: enrollmentError
-        } = await sb
-          .from("enrollments")
-          .insert(enrollmentPayload)
-          .select(
-            "id,enrollment_no,fee_amount,discount_amount,payable_amount"
-          )
-          .single();
-
-
-        if (enrollmentError) {
-          console.error(
-            "Enrollment error:",
-            enrollmentError
-          );
-
-          throw new Error(
-            "Enrollment creation failed: " +
-            enrollmentError.message
-          );
-        }
-
-
-        /* =====================
-           CREATE PAYMENT RECORD
-        ===================== */
-
-        const paymentPayload = {
-          enrollment_id:
-            enrollment.id,
-          amount:
-            Number(
-              enrollment.payable_amount ??
-              payable
-            ),
-          status: "pending",
-          method: "manual",
-          reference_no: null,
-          notes:
-            appliedCoupon
-              ? `Coupon used: ${appliedCoupon}`
-              : null
-        };
-
-
-        const {
-          error: paymentError
-        } = await sb
-          .from("payments")
-          .insert(paymentPayload);
-
-
-        if (paymentError) {
-          console.error(
-            "Payment record error:",
-            paymentError
-          );
-
-          throw new Error(
-            "Payment record creation failed: " +
-            paymentError.message
-          );
-        }
-
-
-        /* =====================
-           SUCCESS
-        ===================== */
-
-        showMessage(
-          `Registration successful! Student Code: ${student.student_code} | Enrollment No: ${enrollment.enrollment_no} | Course Fee: ₹${Number(enrollment.fee_amount || 0).toLocaleString("en-IN")} | Discount: ₹${Number(enrollment.discount_amount || 0).toLocaleString("en-IN")} | Payable Amount: ₹${Number(enrollment.payable_amount || 0).toLocaleString("en-IN")} | Payment Status: Pending`
-        );
-
-
-        form.reset();
-
-        if (emailInputExists()) {
-          const emailInput = $("email");
-          emailInput.value =
-            user.email || "";
-        }
-
-        appliedCoupon = null;
-        appliedDiscountPercent = 0;
-        currentCourseFee = 0;
-
-        if (couponMsg) {
-          couponMsg.textContent = "";
-        }
-
-        if (feeSummary) {
-          feeSummary.style.display = "none";
-        }
-
-
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.textContent =
-            "Submit Registration";
-        }
-
-
-      } catch (error) {
-
-        console.error(
-          "Registration error:",
-          error
-        );
-
-        showMessage(
-          error.message ||
-          "Registration failed. Please try again.",
-          "error"
-        );
-
-        const submitBtn =
-          form.querySelector(
-            'button[type="submit"]'
-          );
-
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.textContent =
-            "Submit Registration";
-        }
-      }
+    if (photoError) {
+      throw photoError;
     }
-  );
+
+
+    // -----------------------------
+    // DOCUMENT UPLOAD
+    // -----------------------------
+
+    const documentFile = $("document").files[0];
+
+    if (!documentFile) {
+      throw new Error("Please select document.");
+    }
+
+    if (
+      ![
+        "image/jpeg",
+        "image/png",
+        "application/pdf"
+      ].includes(documentFile.type)
+    ) {
+      throw new Error(
+        "Document must be JPG, PNG or PDF."
+      );
+    }
+
+    if (documentFile.size > 5 * 1024 * 1024) {
+      throw new Error(
+        "Document must be 5 MB or smaller."
+      );
+    }
+
+    const documentExt =
+      (documentFile.name.split(".").pop() || "pdf")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+
+    documentPath =
+      `${user.id}/document-${crypto.randomUUID()}.${documentExt}`;
+
+    const {
+      error: documentError
+    } = await sb.storage
+      .from("student-private")
+      .upload(documentPath, documentFile, {
+        upsert: false,
+        contentType: documentFile.type
+      });
+
+    if (documentError) {
+      throw documentError;
+    }
+
+
+    // -----------------------------
+    // STUDENT INSERT
+    // -----------------------------
+
+    const studentPayload = {
+      user_id: user.id,
+      auth_user_id: user.id,
+
+      // Database trigger generates:
+      // MCX-STU-YYYY-000001
+      student_code: "",
+
+      full_name: $("full_name").value.trim(),
+
+      father_name:
+        $("father_name").value.trim() || null,
+
+      mother_name:
+        $("mother_name").value.trim() || null,
+
+      gender:
+        $("gender").value || null,
+
+      date_of_birth:
+        $("date_of_birth").value || null,
+
+      mobile: mobile,
+
+      email: user.email || null,
+
+      aadhaar_number: aadhaar,
+
+      qualification:
+        $("qualification").value.trim() || null,
+
+      address:
+        $("address").value.trim() || null,
+
+      state:
+        $("state").value.trim() || null,
+
+      district:
+        $("district").value.trim() || null,
+
+      pin_code:
+        pin || null,
+
+      photo_path: photoPath,
+
+      document_path: documentPath,
+
+      status: "pending"
+    };
+
+
+    const {
+      data: student,
+      error: studentError
+    } = await sb
+      .from("students")
+      .insert(studentPayload)
+      .select("id,student_code")
+      .single();
+
+    if (studentError) {
+      throw studentError;
+    }
+
+    studentId = student.id;
+
+
+    // -----------------------------
+    // ENROLLMENT
+    // -----------------------------
+
+    const {
+      data: enrollment,
+      error: enrollmentError
+    } = await sb
+      .from("enrollments")
+      .insert({
+        student_id: student.id,
+        course_id: courseId,
+        status: "pending_payment"
+      })
+      .select(
+        "id,fee_amount,discount_amount,payable_amount,enrollment_no"
+      )
+      .single();
+
+    if (enrollmentError) {
+      throw enrollmentError;
+    }
+
+
+    // -----------------------------
+    // PAYMENT RECORD
+    // -----------------------------
+
+    const {
+      error: paymentError
+    } = await sb
+      .from("payments")
+      .insert({
+        enrollment_id: enrollment.id,
+        amount: Number(
+          enrollment.payable_amount || 0
+        ),
+        status: "pending",
+        method: "manual",
+        notes:
+          "Registration submitted. Payment pending admin confirmation."
+      });
+
+    if (paymentError) {
+      throw paymentError;
+    }
+
+
+    // -----------------------------
+    // SUCCESS
+    // -----------------------------
+
+    showMsg(
+      "Registration successful! " +
+      "Student Code: " +
+      (student.student_code || "Generated") +
+      " | Enrollment No: " +
+      (enrollment.enrollment_no || "Generated") +
+      " | Payment Status: Pending."
+    );
+
+    form.reset();
+
+    emailInput.value = user.email || "";
+
+    notice.textContent =
+      "Registration submitted successfully.";
+
+  } catch (error) {
+    console.error("Registration error:", error);
+
+    // Remove uploaded files if student record
+    // was not created.
+    if (!studentId && photoPath) {
+      await sb.storage
+        .from("student-private")
+        .remove([photoPath])
+        .catch(() => {});
+    }
+
+    if (!studentId && documentPath) {
+      await sb.storage
+        .from("student-private")
+        .remove([documentPath])
+        .catch(() => {});
+    }
+
+    showMsg(
+      error?.message ||
+        "Registration failed. Please try again.",
+      true
+    );
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
+
+
+// -----------------------------
+// LOGOUT
+// -----------------------------
+
+const logoutButton = $("logout");
+
+if (logoutButton) {
+  logoutButton.onclick = async () => {
+    await sb.auth.signOut();
+    window.location.href = "index.html";
+  };
 }
 
 
-/* =========================
-   EMAIL HELPER
-========================= */
-
-function emailInputExists() {
-  return !!$("email");
-}
-
-
-/* =========================
-   START
-========================= */
-
-(async function init() {
-
-  const user =
-    await loadUser();
-
-  if (!user) return;
-
-  await loadCourses();
-
-})();
+// Start
+loadRegistration();
